@@ -1,0 +1,126 @@
+package com.example.birdgame
+
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.view.MotionEvent
+import android.view.SurfaceHolder
+import android.view.SurfaceView
+import kotlin.random.Random
+
+class BirdGameSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Callback, Runnable {
+    private var gameThread: Thread? = null
+    private var isPlaying = false
+    private val paint = Paint()
+    private val bird = Bird()
+    private val towers = mutableListOf<Tower>()
+    private var score = 0
+    private val startTime = System.currentTimeMillis()
+    private val towerGap = 600
+    private val towerWidth = 200
+    private val towerSpeed = 15
+
+    init {
+        holder.addCallback(this)
+    }
+
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        isPlaying = true
+        gameThread = Thread(this)
+        gameThread?.start()
+    }
+
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
+
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
+        isPlaying = false
+        gameThread?.join()
+    }
+
+    override fun run() {
+        while (isPlaying) {
+            update()
+            drawCanvas()
+            Thread.sleep(30)
+        }
+    }
+
+    private fun update() {
+        bird.update()
+        if (towers.isEmpty() || towers.last().x < width - towerGap) {
+            towers.add(Tower(width, height))
+        }
+        towers.removeAll { tower ->
+            if (tower.x + towerWidth < 0) {
+                score++
+                true
+            } else {
+                tower.update()
+                false
+            }
+        }
+    }
+
+    private fun drawCanvas() {
+        if (holder.surface.isValid) {
+            val canvas = holder.lockCanvas()
+            canvas.drawColor(Color.CYAN)
+            bird.draw(canvas, paint)
+            towers.forEach { it.draw(canvas, paint) }
+            paint.color = Color.BLACK
+            paint.textSize = 80f
+            canvas.drawText("Score: $score", 50f, 100f, paint)
+            val elapsedTime = (System.currentTimeMillis() - startTime) / 1000
+            canvas.drawText("Time: ${elapsedTime}s", 50f, 200f, paint)
+            holder.unlockCanvasAndPost(canvas)
+        }
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.action == MotionEvent.ACTION_DOWN) {
+            bird.jump()
+        }
+        return true
+    }
+}
+
+class Bird {
+    private var x = 200f
+    private var y = 500f
+    private var velocity = 0f
+    private val gravity = 4f
+    private val jumpStrength = -60f
+
+    fun update() {
+        velocity += gravity
+        y += velocity
+    }
+
+    fun jump() {
+        velocity = jumpStrength
+    }
+
+    fun draw(canvas: Canvas, paint: Paint) {
+        paint.color = Color.YELLOW
+        canvas.drawCircle(x, y, 50f, paint)
+    }
+}
+
+class Tower(screenWidth: Int, screenHeight: Int) {
+    var x = screenWidth
+    private val gapHeight = 400
+    private val y = Random.nextInt(100, screenHeight - gapHeight - 200)
+    private val towerWidth = 200
+    private val towerSpeed = 15
+
+    fun update() {
+        x -= towerSpeed
+    }
+
+    fun draw(canvas: Canvas, paint: Paint) {
+        paint.color = Color.GREEN
+        canvas.drawRect(x.toFloat(), 0f, (x + towerWidth).toFloat(), y.toFloat(), paint)
+        canvas.drawRect(x.toFloat(), (y + gapHeight).toFloat(), (x + towerWidth).toFloat(), canvas.height.toFloat(), paint)
+    }
+}
